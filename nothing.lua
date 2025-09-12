@@ -1,4 +1,4 @@
--- Ecstays UI Library (Standalone Loadstring Version)
+-- Ecstays UI Library (Standalone Loadstring Version with Error Handling)
 -- Pink-Purple themed, clean, and fully self-contained UI library
 
 -- Services
@@ -20,15 +20,15 @@ local Setup = {
 
 -- Pink-Purple Theme
 local Theme = {
-	Primary = Color3.fromRGB(40, 30, 50),      -- Deep purple background
-	Secondary = Color3.fromRGB(50, 40, 60),    -- Slightly lighter purple
-	Component = Color3.fromRGB(70, 50, 80),    -- Component background
-	Interactables = Color3.fromRGB(200, 100, 150), -- Pink accent
-	Text = Color3.fromRGB(240, 200, 220),      -- Light pink text
-	Title = Color3.fromRGB(255, 180, 200),     -- Brighter pink for titles
-	Shadow = Color3.fromRGB(20, 10, 30),       -- Dark purple shadow
-	Outline = Color3.fromRGB(90, 60, 100),     -- Purple outline
-	Icon = Color3.fromRGB(220, 180, 200)       -- Soft pink icons
+	Primary = Color3.fromRGB(40, 30, 50),
+	Secondary = Color3.fromRGB(50, 40, 60),
+	Component = Color3.fromRGB(70, 50, 80),
+	Interactables = Color3.fromRGB(200, 100, 150),
+	Text = Color3.fromRGB(240, 200, 220),
+	Title = Color3.fromRGB(255, 180, 200),
+	Shadow = Color3.fromRGB(20, 10, 30),
+	Outline = Color3.fromRGB(90, 60, 100),
+	Icon = Color3.fromRGB(220, 180, 200)
 }
 
 -- Utility Functions
@@ -763,4 +763,5 @@ function Library:CreateWindow(Settings)
 	return Options
 end
 
+-- Ensure the library is returned for loadstring
 return Library
