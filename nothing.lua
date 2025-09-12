@@ -29,16 +29,31 @@ local Library = {
 	UITransparency = false
 }
 
--- Utility Functions
-local function Create(Name, Properties, Children)
-	local Object = Instance.new(Name)
-	for prop, value in pairs(Properties or {}) do
-		Object[prop] = value
-	end
-	for _, child in pairs(Children or {}) do
-		child.Parent = Object
-	end
-	return Object
+function Library:CleanupInstance()
+    for _, con in pairs(self.Connections) do
+        if typeof(con) == "RBXScriptConnection" then
+            con:Disconnect()
+        end
+    end
+    table.clear(self.Connections)
+    local cg = game:GetService("CoreGui")
+    for _, obj in pairs(cg:GetChildren()) do
+        if obj:IsA("ScreenGui") and obj.Name:match("^[A-Z]%d%d%d$") then
+            obj:Destroy()
+        end
+    end
+end
+
+local function Create(Name, Parent, Properties, Children)
+    local Object = Instance.new(Name)
+    for prop, value in pairs(Properties or {}) do
+        Object[prop] = value
+    end
+    for _, child in pairs(Children or {}) do
+        child.Parent = Object
+    end
+    Object.Parent = Parent
+    return Object
 end
 
 local function AddConnection(Signal, Function)
@@ -113,8 +128,8 @@ local function SetTheme()
 	end
 end
 
--- UI Setup
 Library:CleanupInstance()
+
 local Container = Create("ScreenGui", game:GetService("CoreGui"), {
 	Name = string.char(math.random(65, 90)) .. tostring(math.random(100, 999)),
 	DisplayOrder = 2147483647
@@ -133,7 +148,6 @@ task.spawn(function()
 	end
 end)
 
--- Transparency and Glass Effect
 function Library:SetUITransparency(enabled)
 	Library.UITransparency = enabled
 	local transparency = enabled and 0.1 or 0
@@ -153,7 +167,6 @@ function Library:SetUITransparency(enabled)
 	end
 end
 
--- Config Management
 local function PackColor(Color)
 	return {R = Color.R * 255, G = Color.G * 255, B = Color.B * 255}
 end
@@ -191,21 +204,20 @@ local function SaveCfg(Name)
 	end
 end
 
--- UI Elements
 CreateElement("Corner", function(Scale, Offset)
-	return Create("UICorner", {CornerRadius = UDim.new(Scale or 0, Offset or 6)})
+	return Create("UICorner", nil, {CornerRadius = UDim.new(Scale or 0, Offset or 6)})
 end)
 
 CreateElement("Stroke", function(Color, Thickness)
-	return Create("UIStroke", {Color = Color or Library.Themes.Default.Stroke, Thickness = Thickness or 1})
+	return Create("UIStroke", nil, {Color = Color or Library.Themes.Default.Stroke, Thickness = Thickness or 1})
 end)
 
 CreateElement("List", function(Scale, Offset)
-	return Create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(Scale or 0, Offset or 4)})
+	return Create("UIListLayout", nil, {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(Scale or 0, Offset or 4)})
 end)
 
 CreateElement("Padding", function(Bottom, Left, Right, Top)
-	return Create("UIPadding", {
+	return Create("UIPadding", nil, {
 		PaddingBottom = UDim.new(0, Bottom or 4),
 		PaddingLeft = UDim.new(0, Left or 4),
 		PaddingRight = UDim.new(0, Right or 4),
@@ -214,22 +226,22 @@ CreateElement("Padding", function(Bottom, Left, Right, Top)
 end)
 
 CreateElement("Frame", function(Color)
-	return Create("Frame", {BackgroundColor3 = Color or Library.Themes.Default.Main, BorderSizePixel = 0})
+	return Create("Frame", nil, {BackgroundColor3 = Color or Library.Themes.Default.Main, BorderSizePixel = 0})
 end)
 
 CreateElement("RoundFrame", function(Color, Scale, Offset)
-	return Create("Frame", {
+	return Create("Frame", nil, {
 		BackgroundColor3 = Color or Library.Themes.Default.Main,
 		BorderSizePixel = 0
 	}, {MakeElement("Corner", Scale, Offset)})
 end)
 
 CreateElement("Button", function()
-	return Create("TextButton", {Text = "", AutoButtonColor = false, BackgroundTransparency = 0.8, BorderSizePixel = 0})
+	return Create("TextButton", nil, {Text = "", AutoButtonColor = false, BackgroundTransparency = 0.8, BorderSizePixel = 0})
 end)
 
 CreateElement("ScrollFrame", function(Color, Width)
-	return Create("ScrollingFrame", {
+	return Create("ScrollingFrame", nil, {
 		BackgroundTransparency = 1,
 		ScrollBarImageColor3 = Color or Library.Themes.Default.Divider,
 		BorderSizePixel = 0,
@@ -239,7 +251,7 @@ CreateElement("ScrollFrame", function(Color, Width)
 end)
 
 CreateElement("Label", function(Text, TextSize, Transparency)
-	return Create("TextLabel", {
+	return Create("TextLabel", nil, {
 		Text = Text or "",
 		TextColor3 = Library.Themes.Default.Text,
 		TextTransparency = Transparency or 0,
@@ -250,7 +262,6 @@ CreateElement("Label", function(Text, TextSize, Transparency)
 	})
 end)
 
--- Notification System
 local NotificationHolder = Create("Frame", Container, {
 	Position = UDim2.new(1, -25, 1, -25),
 	Size = UDim2.new(0, 300, 1, -25),
@@ -327,7 +338,6 @@ function Library:MakeNotification(Config)
 	end)
 end
 
--- Window Creation
 function Library:MakeWindow(WindowConfig)
 	WindowConfig = WindowConfig or {}
 	WindowConfig.Name = WindowConfig.Name or "UI Library"
@@ -356,7 +366,7 @@ function Library:MakeWindow(WindowConfig)
 		Name = "TopBar"
 	})
 
-	local WindowName = AddThemeObject(Create("TextLabel", {
+	local WindowName = AddThemeObject(Create("TextLabel", DragPoint, {
 		Text = WindowConfig.Name,
 		Size = UDim2.new(1, -30, 0, 50),
 		Position = UDim2.new(0, WindowConfig.ShowIcon and 50 or 25, 0, 0),
@@ -380,6 +390,7 @@ function Library:MakeWindow(WindowConfig)
 		Size = UDim2.new(0, 30, 0, 30),
 		Position = UDim2.new(1, -40, 0, 10),
 		BackgroundColor3 = Library.Themes.Default.Second,
+		BackgroundTransparency = 0.7,
 		AutoButtonColor = false
 	}, {
 		AddThemeObject(Create("ImageLabel", {
@@ -398,6 +409,7 @@ function Library:MakeWindow(WindowConfig)
 		Size = UDim2.new(0, 30, 0, 30),
 		Position = UDim2.new(1, -80, 0, 10),
 		BackgroundColor3 = Library.Themes.Default.Second,
+		BackgroundTransparency = 0.7,
 		AutoButtonColor = false
 	}, {
 		AddThemeObject(Create("ImageLabel", {
@@ -412,7 +424,7 @@ function Library:MakeWindow(WindowConfig)
 		MakeElement("Stroke")
 	})
 
-	local TabHolder = AddThemeObject(Create("ScrollingFrame", {
+	local TabHolder = AddThemeObject(Create("ScrollingFrame", MainWindow, {
 		Size = UDim2.new(0, 150, 1, -50),
 		Position = UDim2.new(0, 0, 0, 50),
 		BackgroundColor3 = Library.Themes.Default.Second,
@@ -460,7 +472,7 @@ function Library:MakeWindow(WindowConfig)
 	end)
 
 	AddConnection(UserInputService.InputBegan, function(Input)
-		if Input.KeyCode == Enum.KeyCode.Insert and UIHidden then
+		if Input.KeyCode == Enum.KeyCode.Insert then
 			MainWindow.Visible = not MainWindow.Visible
 			MobileReopenButton.Visible = not MainWindow.Visible
 			UIHidden = not MainWindow.Visible
@@ -490,23 +502,6 @@ function Library:MakeWindow(WindowConfig)
 	end)
 
 	local TabFunction = {}
-	local FirstTab = true
-
-	-- Automatic Library Tab
-	local LibraryTab = TabFunction:MakeTab({
-		Name = "Library",
-		Icon = "rbxassetid://18898147855",
-		PremiumOnly = false
-	})
-
-	LibraryTab:AddToggle({
-		Name = "Enable Transparency",
-		Default = false,
-		Color = Library.Themes.Default.Accent,
-		Callback = function(value)
-			Library:SetUITransparency(value)
-		end
-	})
 
 	function TabFunction:MakeTab(TabConfig)
 		TabConfig = TabConfig or {}
@@ -540,7 +535,7 @@ function Library:MakeWindow(WindowConfig)
 			}), "Text")
 		})
 
-		local Container = AddThemeObject(Create("ScrollingFrame", {
+		local Container = AddThemeObject(Create("ScrollingFrame", MainWindow, {
 			Size = UDim2.new(1, -150, 1, -50),
 			Position = UDim2.new(0, 150, 0, 50),
 			BackgroundTransparency = 1,
@@ -548,8 +543,7 @@ function Library:MakeWindow(WindowConfig)
 			ScrollBarThickness = 5,
 			CanvasSize = UDim2.new(0, 0, 0, 0),
 			Visible = FirstTab,
-			Name = "ItemContainer",
-			Parent = MainWindow
+			Name = "ItemContainer"
 		}, {
 			MakeElement("List", 0, 6),
 			MakeElement("Padding", 15, 10, 10, 15)
@@ -585,11 +579,10 @@ function Library:MakeWindow(WindowConfig)
 		local ElementFunction = {}
 
 		function ElementFunction:AddLabel(Text)
-			local LabelFrame = AddThemeObject(Create("Frame", {
+			local LabelFrame = AddThemeObject(Create("Frame", Container, {
 				Size = UDim2.new(1, 0, 0, 30),
 				BackgroundColor3 = Library.Themes.Default.Second,
-				BackgroundTransparency = 0.7,
-				Parent = Container
+				BackgroundTransparency = 0.7
 			}, {
 				AddThemeObject(Create("TextLabel", {
 					Text = Text or "",
@@ -618,11 +611,10 @@ function Library:MakeWindow(WindowConfig)
 			ButtonConfig.Callback = ButtonConfig.Callback or function() end
 			ButtonConfig.Icon = ButtonConfig.Icon or "rbxassetid://3944703587"
 
-			local ButtonFrame = AddThemeObject(Create("Frame", {
+			local ButtonFrame = AddThemeObject(Create("Frame", Container, {
 				Size = UDim2.new(1, 0, 0, 33),
 				BackgroundColor3 = Library.Themes.Default.Second,
-				BackgroundTransparency = 0.7,
-				Parent = Container
+				BackgroundTransparency = 0.7
 			}, {
 				AddThemeObject(Create("TextLabel", {
 					Text = ButtonConfig.Name,
@@ -696,11 +688,10 @@ function Library:MakeWindow(WindowConfig)
 				MakeElement("Corner", 0, 4)
 			})
 
-			local ToggleFrame = AddThemeObject(Create("Frame", {
+			local ToggleFrame = AddThemeObject(Create("Frame", Container, {
 				Size = UDim2.new(1, 0, 0, 38),
 				BackgroundColor3 = Library.Themes.Default.Second,
-				BackgroundTransparency = 0.7,
-				Parent = Container
+				BackgroundTransparency = 0.7
 			}, {
 				AddThemeObject(Create("TextLabel", {
 					Text = ToggleConfig.Name,
@@ -808,11 +799,10 @@ function Library:MakeWindow(WindowConfig)
 				MakeElement("Corner", 0, 5)
 			})
 
-			local SliderFrame = AddThemeObject(Create("Frame", {
+			local SliderFrame = AddThemeObject(Create("Frame", Container, {
 				Size = UDim2.new(1, 0, 0, 65),
 				BackgroundColor3 = Library.Themes.Default.Second,
-				BackgroundTransparency = 0.7,
-				Parent = Container
+				BackgroundTransparency = 0.7
 			}, {
 				AddThemeObject(Create("TextLabel", {
 					Text = SliderConfig.Name,
@@ -877,21 +867,19 @@ function Library:MakeWindow(WindowConfig)
 			local MaxElements = 5
 
 			local DropdownList = MakeElement("List")
-			local DropdownContainer = AddThemeObject(Create("ScrollingFrame", {
+			local DropdownContainer = AddThemeObject(Create("ScrollingFrame", Container, {
 				Size = UDim2.new(1, 0, 1, -38),
 				Position = UDim2.new(0, 0, 0, 38),
 				BackgroundColor3 = Library.Themes.Default.Divider,
 				ScrollBarImageColor3 = Library.Themes.Default.Stroke,
 				ScrollBarThickness = 4,
-				ClipsDescendants = true,
-				Parent = Container
+				ClipsDescendants = true
 			}, {DropdownList}), "Divider")
 
-			local DropdownFrame = AddThemeObject(Create("Frame", {
+			local DropdownFrame = AddThemeObject(Create("Frame", Container, {
 				Size = UDim2.new(1, 0, 0, 38),
 				BackgroundColor3 = Library.Themes.Default.Second,
 				BackgroundTransparency = 0.7,
-				Parent = Container,
 				ClipsDescendants = true
 			}, {
 				DropdownContainer,
@@ -956,12 +944,11 @@ function Library:MakeWindow(WindowConfig)
 				end
 				Dropdown.Options = Options
 				for _, Option in pairs(Options) do
-					local OptionBtn = AddThemeObject(Create("TextButton", {
+					local OptionBtn = AddThemeObject(Create("TextButton", DropdownContainer, {
 						Size = UDim2.new(1, 0, 0, 28),
 						BackgroundColor3 = Library.Themes.Default.Divider,
 						BackgroundTransparency = 1,
-						AutoButtonColor = false,
-						Parent = DropdownContainer
+						AutoButtonColor = false
 					}, {
 						AddThemeObject(Create("TextLabel", {
 							Text = Option,
@@ -1037,7 +1024,7 @@ function Library:MakeWindow(WindowConfig)
 			local Bind = {Value = BindConfig.Default, Binding = false, Type = "Bind", Save = BindConfig.Save}
 			local Holding = false
 
-			local BindBox = AddThemeObject(Create("Frame", {
+			local BindBox = AddThemeObject(Create("Frame", nil, {
 				Size = UDim2.new(0, 24, 0, 24),
 				Position = UDim2.new(1, -12, 0.5, 0),
 				AnchorPoint = Vector2.new(1, 0.5),
@@ -1057,11 +1044,10 @@ function Library:MakeWindow(WindowConfig)
 				MakeElement("Corner", 0, 4)
 			}), "Main")
 
-			local BindFrame = AddThemeObject(Create("Frame", {
+			local BindFrame = AddThemeObject(Create("Frame", Container, {
 				Size = UDim2.new(1, 0, 0, 38),
 				BackgroundColor3 = Library.Themes.Default.Second,
-				BackgroundTransparency = 0.7,
-				Parent = Container
+				BackgroundTransparency = 0.7
 			}, {
 				AddThemeObject(Create("TextLabel", {
 					Text = BindConfig.Name,
@@ -1145,7 +1131,7 @@ function Library:MakeWindow(WindowConfig)
 			TextboxConfig.TextDisappear = TextboxConfig.TextDisappear or false
 			TextboxConfig.Callback = TextboxConfig.Callback or function() end
 
-			local TextboxActual = AddThemeObject(Create("TextBox", {
+			local TextboxActual = AddThemeObject(Create("TextBox", nil, {
 				Size = UDim2.new(1, 0, 1, 0),
 				BackgroundTransparency = 1,
 				TextColor3 = Library.Themes.Default.Text,
@@ -1157,7 +1143,7 @@ function Library:MakeWindow(WindowConfig)
 				ClearTextOnFocus = false
 			}), "Text")
 
-			local TextContainer = AddThemeObject(Create("Frame", {
+			local TextContainer = AddThemeObject(Create("Frame", nil, {
 				Size = UDim2.new(0, 24, 0, 24),
 				Position = UDim2.new(1, -12, 0.5, 0),
 				AnchorPoint = Vector2.new(1, 0.5),
@@ -1168,11 +1154,10 @@ function Library:MakeWindow(WindowConfig)
 				TextboxActual
 			}), "Main")
 
-			local TextboxFrame = AddThemeObject(Create("Frame", {
+			local TextboxFrame = AddThemeObject(Create("Frame", Container, {
 				Size = UDim2.new(1, 0, 0, 38),
 				BackgroundColor3 = Library.Themes.Default.Second,
-				BackgroundTransparency = 0.7,
-				Parent = Container
+				BackgroundTransparency = 0.7
 			}, {
 				AddThemeObject(Create("TextLabel", {
 					Text = TextboxConfig.Name,
@@ -1228,7 +1213,7 @@ function Library:MakeWindow(WindowConfig)
 			local ColorH, ColorS, ColorV = Color3.toHSV(ColorpickerConfig.Default)
 			local Colorpicker = {Value = ColorpickerConfig.Default, Toggled = false, Type = "Colorpicker", Save = ColorpickerConfig.Save}
 
-			local Color = Create("ImageLabel", {
+			local Color = Create("ImageLabel", nil, {
 				Size = UDim2.new(1, -25, 1, 0),
 				Visible = false,
 				Image = "rbxassetid://4155801252",
@@ -1245,7 +1230,7 @@ function Library:MakeWindow(WindowConfig)
 				})
 			})
 
-			local Hue = Create("Frame", {
+			local Hue = Create("Frame", nil, {
 				Size = UDim2.new(0, 20, 1, 0),
 				Position = UDim2.new(1, -20, 0, 0),
 				Visible = false
@@ -1273,7 +1258,7 @@ function Library:MakeWindow(WindowConfig)
 				})
 			})
 
-			local ColorpickerContainer = Create("Frame", {
+			local ColorpickerContainer = Create("Frame", nil, {
 				Position = UDim2.new(0, 0, 0, 32),
 				Size = UDim2.new(1, 0, 1, -32),
 				BackgroundTransparency = 1,
@@ -1289,7 +1274,7 @@ function Library:MakeWindow(WindowConfig)
 				})
 			})
 
-			local ColorpickerBox = AddThemeObject(Create("Frame", {
+			local ColorpickerBox = AddThemeObject(Create("Frame", nil, {
 				Size = UDim2.new(0, 24, 0, 24),
 				Position = UDim2.new(1, -12, 0.5, 0),
 				AnchorPoint = Vector2.new(1, 0.5),
@@ -1299,11 +1284,10 @@ function Library:MakeWindow(WindowConfig)
 				MakeElement("Corner", 0, 4)
 			}), "Main")
 
-			local ColorpickerFrame = AddThemeObject(Create("Frame", {
+			local ColorpickerFrame = AddThemeObject(Create("Frame", Container, {
 				Size = UDim2.new(1, 0, 0, 38),
 				BackgroundColor3 = Library.Themes.Default.Second,
-				BackgroundTransparency = 0.7,
-				Parent = Container
+				BackgroundTransparency = 0.7
 			}, {
 				Create("Frame", {
 					Size = UDim2.new(1, 0, 0, 38),
@@ -1407,6 +1391,22 @@ function Library:MakeWindow(WindowConfig)
 
 		return ElementFunction
 	end
+
+	local FirstTab = true
+	local LibraryTab = TabFunction:MakeTab({
+		Name = "Library",
+		Icon = "rbxassetid://18898147855",
+		PremiumOnly = false
+	})
+
+	LibraryTab:AddToggle({
+		Name = "Enable Transparency",
+		Default = false,
+		Color = Library.Themes.Default.Accent,
+		Callback = function(value)
+			Library:SetUITransparency(value)
+		end
+	})
 
 	return TabFunction
 end
