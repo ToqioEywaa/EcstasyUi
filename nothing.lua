@@ -1,42 +1,42 @@
 --[[
-    Ecstays UI Library (2025 rebuild)
-    - Clean core with icy drag (inertia + live transparency)
-    - Zoom open/close
-    - Only Minimize & Close (top-right, large, clean)
-    - Pink–Lilac accent
-    - Full set of controls: Tabs, Sections, Button, Input, Toggle, Keybind, Dropdown, Slider, Paragraph, Notify
-    - No external assets, no loadstring
+    Ecstays UI Library — 2025 clean rebuild
+    - clean dark theme (pink–lilac accent)
+    - only Minimize & Close (top-right, large, clean)
+    - zoom open/close
+    - icy drag with inertia + live transparency on drag
+    - full control set: Tabs, Sections, Button, Input, Toggle, Keybind, Dropdown, Slider, Paragraph, Notify
+    - theming + settings (Size, Transparency, Keybind, Theme)
+    - no external assets, no loadstrings
 ]]
 
---========================================================
--- Guards & Services
---========================================================
 if not game:IsLoaded() then game.Loaded:Wait() end
 
+--========================================================
+-- Services & Shortcuts
+--========================================================
 local Players   = game:GetService("Players")
 local Tween     = game:GetService("TweenService")
 local UIS       = game:GetService("UserInputService")
-local Run       = game:GetService("RunService")
-local Http      = game:GetService("HttpService")
 
 local LP        = Players.LocalPlayer
 
---========================================================
--- Helpers
---========================================================
 local function safeParent(gui)
-    -- Prefer CoreGui if allowed, fallback to PlayerGui
     local ok = pcall(function() gui.Parent = game:GetService("CoreGui") end)
-    if not ok then
-        gui.Parent = LP:WaitForChild("PlayerGui")
-    end
+    if not ok then gui.Parent = LP:WaitForChild("PlayerGui") end
 end
 
 local function tplay(inst, time, props, style, dir)
     return Tween:Create(inst, TweenInfo.new(time, style or Enum.EasingStyle.Sine, dir or Enum.EasingDirection.Out), props):Play()
 end
 
-local function clamp01(x) return (x<0 and 0) or (x>1 and 1) or x end
+local function tint(col, by, mode)
+    local r,g,b = col.R*255, col.G*255, col.B*255
+    if mode == "down" then
+        return Color3.fromRGB(math.clamp(r-by,0,255), math.clamp(g-by,0,255), math.clamp(b-by,0,255))
+    else
+        return Color3.fromRGB(math.clamp(r+by,0,255), math.clamp(g+by,0,255), math.clamp(b+by,0,255))
+    end
+end
 
 local function clampToViewport(guiObj)
     local cam = workspace.CurrentCamera
@@ -48,59 +48,56 @@ local function clampToViewport(guiObj)
     guiObj.Position = UDim2.fromOffset(x, y)
 end
 
-local function newRound(parent, r) local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, r or 10); c.Parent = parent; return c end
+local function newRound(parent, r)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, r or 10)
+    c.Parent = parent
+    return c
+end
+
 local function newStroke(parent, thk, col, tr)
-    local s = Instance.new("UIStroke"); s.Thickness = thk or 1; s.Color = col or Color3.fromRGB(60,60,65); s.Transparency = tr or .6; s.Parent = parent; return s
+    local s = Instance.new("UIStroke")
+    s.Thickness = thk or 1
+    s.Color = col or Color3.fromRGB(60,60,65)
+    s.Transparency = tr or .6
+    s.Parent = parent
+    return s
 end
 
 local function px(n) return UDim.new(0, n) end
+local function clamp01(x) return (x<0 and 0) or (x>1 and 1) or x end
 
 --========================================================
--- Theme
+-- Theme (default)
 --========================================================
 local DEFAULT_THEME = {
-    -- Surfaces
     Primary       = Color3.fromRGB(18, 16, 22),  -- titlebar
     Secondary     = Color3.fromRGB(24, 22, 30),  -- window/content
     Tertiary      = Color3.fromRGB(30, 27, 38),  -- components
     Interact      = Color3.fromRGB(38, 34, 48),  -- hovers/inputs
 
-    -- Text
     Title         = Color3.fromRGB(242, 238, 248),
     Text          = Color3.fromRGB(212, 208, 220),
     Muted         = Color3.fromRGB(182, 178, 190),
 
-    -- Lines / Icon
     Stroke        = Color3.fromRGB(72, 58, 92),
     Icon          = Color3.fromRGB(235, 220, 245),
 
-    -- Accent
-    Accent        = Color3.fromRGB(206, 99, 255),
+    Accent        = Color3.fromRGB(206, 99, 255),  -- pink-lilac
     AccentSoft    = Color3.fromRGB(166, 82, 232),
 
-    -- States
     Danger        = Color3.fromRGB(255, 92, 128),
     Success       = Color3.fromRGB(120, 230, 170),
 }
 
--- Slight color lift/darken (mode= "up"|"down")
-local function tint(col, by, mode)
-    local r,g,b = col.R*255, col.G*255, col.B*255
-    if mode == "down" then
-        return Color3.fromRGB(math.clamp(r - by, 0, 255), math.clamp(g - by,0,255), math.clamp(b - by,0,255))
-    else
-        return Color3.fromRGB(math.clamp(r + by, 0, 255), math.clamp(g + by,0,255), math.clamp(b + by,0,255))
-    end
-end
-
 --========================================================
--- Library
+-- Library Root
 --========================================================
 local Ecstays = {}
-Ecstays._VERSION = "3.0-clean"
+Ecstays._VERSION = "3.1"
 
 --========================================================
--- Core Window
+-- Window Constructor
 --========================================================
 function Ecstays:CreateWindow(opts)
     opts = opts or {}
@@ -153,7 +150,7 @@ function Ecstays:CreateWindow(opts)
     TitleLbl.Text = Title .. " • Ecstays"
     TitleLbl.Parent = Bar
 
-    -- Buttons (right)
+    -- Buttons (right) — only Minimize & Close
     local Btns = Instance.new("Frame")
     Btns.Name = "Buttons"
     Btns.BackgroundTransparency = 1
@@ -180,8 +177,6 @@ function Ecstays:CreateWindow(opts)
         B.Parent = Btns
         newRound(B, 8)
         local s = newStroke(B, 1, Theme.Stroke, .65)
-
-        -- Hover accents
         B.MouseEnter:Connect(function()
             tplay(B, .12, {BackgroundColor3 = Theme.Interact})
             tplay(s, .12, {Transparency = .42, Color = Theme.Accent})
@@ -190,14 +185,13 @@ function Ecstays:CreateWindow(opts)
             tplay(B, .14, {BackgroundColor3 = tint(Theme.Secondary, 6, "down")})
             tplay(s, .14, {Transparency = .65, Color = Theme.Stroke})
         end)
-
         return B
     end
 
     local BtnMin   = mkBtn("Minimize", "–", Theme.Text)
     local BtnClose = mkBtn("Close",    "×", Theme.Danger)
 
-    -- Body layout: Sidebar + Main
+    -- Body: Sidebar + Main
     local Body = Instance.new("Frame")
     Body.Name = "Body"
     Body.BackgroundTransparency = 1
@@ -205,7 +199,6 @@ function Ecstays:CreateWindow(opts)
     Body.Position = UDim2.fromOffset(10, 54)
     Body.Parent = Root
 
-    -- Sidebar
     local Sidebar = Instance.new("Frame")
     Sidebar.Name = "Sidebar"
     Sidebar.Size = UDim2.new(0, 204, 1, 0)
@@ -236,7 +229,6 @@ function Ecstays:CreateWindow(opts)
     TLLayout.SortOrder = Enum.SortOrder.LayoutOrder
     TLLayout.Padding = UDim.new(0, 6)
 
-    -- Main
     local Main = Instance.new("Frame")
     Main.Name = "Main"
     Main.BackgroundColor3 = Theme.Tertiary
@@ -246,13 +238,12 @@ function Ecstays:CreateWindow(opts)
     newRound(Main, 12)
     newStroke(Main, 1, Theme.Stroke, .6)
 
-    -- Canvas for Tabs
     local TabPages = Instance.new("Folder")
     TabPages.Name = "TabPages"
     TabPages.Parent = Main
 
     --====================================================
-    -- Open / Close (Zoom)
+    -- Open / Close (zoom)
     --====================================================
     local function open()
         Root.Visible = true
@@ -272,17 +263,12 @@ function Ecstays:CreateWindow(opts)
     end
 
     --====================================================
-    -- Icy Drag with inertia + live transparency
+    -- Icy Drag (inertia + live transparency)
     --====================================================
     do
-        local dragging = false
-        local dragStart
-        local startPos
-        local lastPos
-        local velocity = Vector2.new(0,0)
-        local lastTick = 0
-        local friction = 0.88
-        local boost = 12
+        local dragging, dragStart, startPos
+        local lastPos, velocity, lastTick = nil, Vector2.new(0,0), 0
+        local friction, boost = 0.88, 12
 
         local function setDragTransparency(active)
             if active then
@@ -305,7 +291,6 @@ function Ecstays:CreateWindow(opts)
                     if input.UserInputState == Enum.UserInputState.End then
                         dragging = false
                         setDragTransparency(false)
-                        -- inertia tween
                         local target = Vector2.new(
                             Root.Position.X.Offset + velocity.X * boost,
                             Root.Position.Y.Offset + velocity.Y * boost
@@ -324,12 +309,10 @@ function Ecstays:CreateWindow(opts)
                 local delta = input.Position - dragStart
                 Root.Position = UDim2.fromOffset(startPos.X.Offset + delta.X, startPos.Y.Offset + delta.Y)
 
-                local now = tick()
-                local dt = now - lastTick
+                local now, dt = tick(), tick() - lastTick
                 if dt > 0 then
                     local diff = input.Position - lastPos
-                    local vx = diff.X / dt
-                    local vy = diff.Y / dt
+                    local vx, vy = diff.X / dt, diff.Y / dt
                     velocity = Vector2.new(
                         velocity.X * friction + vx * (1 - friction),
                         velocity.Y * friction + vy * (1 - friction)
@@ -342,10 +325,10 @@ function Ecstays:CreateWindow(opts)
     end
 
     --====================================================
-    -- Tabs + Pages
+    -- Tabs & Pages
     --====================================================
-    local Tabs = {}
-    local CurrentTab = nil
+    local Tabs, CurrentTab = {}, nil
+    local SectionsOrder = {}
 
     local function makeTabButton(tabName, order)
         local Btn = Instance.new("TextButton")
@@ -375,7 +358,6 @@ function Ecstays:CreateWindow(opts)
         T.Size = UDim2.new(1, 0, 1, 0)
         T.Parent = Labels
 
-        -- Hover
         Btn.MouseEnter:Connect(function()
             tplay(Btn, .12, {BackgroundColor3 = tint(Theme.Interact, 4, "up")})
             tplay(s, .12, {Transparency = .45, Color = Theme.Accent})
@@ -424,8 +406,7 @@ function Ecstays:CreateWindow(opts)
 
     local function setTab(name)
         for tabName, info in pairs(Tabs) do
-            local btn = info.Button
-            local page = info.Page
+            local btn, page = info.Button, info.Page
             if tabName == name then
                 if not page.Visible then
                     page.Visible = true
@@ -444,10 +425,8 @@ function Ecstays:CreateWindow(opts)
     end
 
     --====================================================
-    -- Components (Factory)
+    -- Components (Factories)
     --====================================================
-    local Components = {}
-
     local function section(parent, title)
         local F = Instance.new("TextLabel")
         F.BackgroundColor3 = Theme.Tertiary
@@ -472,7 +451,6 @@ function Ecstays:CreateWindow(opts)
         B.Parent = parent
         newRound(B, 10)
         local s = newStroke(B, 1, Theme.Stroke, .6)
-        -- hover subtle
         B.MouseEnter:Connect(function()
             tplay(B, .12, {BackgroundColor3 = tint(Theme.Tertiary, 4, "up")})
             tplay(s, .12, {Transparency = .46, Color = Theme.Accent})
@@ -527,11 +505,12 @@ function Ecstays:CreateWindow(opts)
         return S
     end
 
+    local Components = {}
+
     -- Button
     function Components.Button(target, cfg)
         local Row = rowBase(target, 64)
-        local T,D = labels(Row, cfg.Title, cfg.Description)
-
+        labels(Row, cfg.Title, cfg.Description)
         local R = rightSlot(Row, 120, 32)
         local B = Instance.new("TextButton")
         B.AutoButtonColor = false
@@ -544,7 +523,6 @@ function Ecstays:CreateWindow(opts)
         B.Parent = R
         newRound(B, 8)
         local s = newStroke(B, 1, Theme.Stroke, .6)
-
         B.MouseEnter:Connect(function()
             tplay(B, .12, {BackgroundColor3 = tint(Theme.Interact, 6, "up")})
             tplay(s, .12, {Transparency = .42, Color = Theme.Accent})
@@ -553,19 +531,15 @@ function Ecstays:CreateWindow(opts)
             tplay(B, .14, {BackgroundColor3 = Theme.Interact})
             tplay(s, .14, {Transparency = .6, Color = Theme.Stroke})
         end)
-        B.MouseButton1Click:Connect(function()
-            pcall(function() cfg.Callback() end)
-        end)
-
+        B.MouseButton1Click:Connect(function() pcall(function() cfg.Callback() end) end)
         return Row
     end
 
     -- Input
     function Components.Input(target, cfg)
         local Row = rowBase(target, 70)
-        local T,D = labels(Row, cfg.Title, cfg.Description)
+        labels(Row, cfg.Title, cfg.Description)
         local R = rightSlot(Row, 220, 32)
-
         local Box = Instance.new("TextBox")
         Box.ClearTextOnFocus = false
         Box.Size = UDim2.fromScale(1,1)
@@ -579,29 +553,25 @@ function Ecstays:CreateWindow(opts)
         Box.Parent = R
         newRound(Box, 8)
         local s = newStroke(Box, 1, Theme.Stroke, .6)
-
         Box.Focused:Connect(function() tplay(s, .10, {Transparency = .35, Color = Theme.Accent}) end)
         Box.FocusLost:Connect(function(enter)
             tplay(s, .12, {Transparency = .6, Color = Theme.Stroke})
             if enter then pcall(function() cfg.Callback(Box.Text) end) end
         end)
-
         return Row
     end
 
     -- Toggle
     function Components.Toggle(target, cfg)
         local Row = rowBase(target, 64)
-        local T,D = labels(Row, cfg.Title, cfg.Description)
-
+        labels(Row, cfg.Title, cfg.Description)
         local R = rightSlot(Row, 64, 28)
         local Back = Instance.new("Frame")
         Back.Size = UDim2.fromScale(1,1)
         Back.BackgroundColor3 = Theme.Interact
         Back.Parent = R
         newRound(Back, 14)
-        local s = newStroke(Back, 1, Theme.Stroke, .6)
-
+        newStroke(Back, 1, Theme.Stroke, .6)
         local Dot = Instance.new("Frame")
         Dot.Size = UDim2.fromOffset(24, 24)
         Dot.Position = UDim2.fromOffset(3,2)
@@ -617,7 +587,7 @@ function Ecstays:CreateWindow(opts)
                 tplay(Dot, .12, {Position = UDim2.fromOffset(64-3-24, 2), BackgroundColor3 = Color3.fromRGB(255,255,255)})
             else
                 tplay(Back, .12, {BackgroundColor3 = Theme.Interact})
-                tplay(Dot, .12, {Position = UDim2.fromOffset(3, 2), BackgroundColor3 = Theme.Secondary})
+                tplay(Dot, .12, {Position = UDim2.fromOffset(3,2), BackgroundColor3 = Theme.Secondary})
             end
         end
         set(state)
@@ -633,9 +603,8 @@ function Ecstays:CreateWindow(opts)
     -- Keybind
     function Components.Keybind(target, cfg)
         local Row = rowBase(target, 64)
-        local T,D = labels(Row, cfg.Title, cfg.Description)
+        labels(Row, cfg.Title, cfg.Description)
         local R = rightSlot(Row, 140, 32)
-
         local Btn = Instance.new("TextButton")
         Btn.AutoButtonColor = false
         Btn.Size = UDim2.fromScale(1,1)
@@ -683,9 +652,8 @@ function Ecstays:CreateWindow(opts)
     -- Dropdown (single select)
     function Components.Dropdown(target, cfg)
         local Row = rowBase(target, 70)
-        local T,D = labels(Row, cfg.Title, cfg.Description)
+        labels(Row, cfg.Title, cfg.Description)
         local R = rightSlot(Row, 220, 32)
-
         local Btn = Instance.new("TextButton")
         Btn.AutoButtonColor = false
         Btn.BackgroundColor3 = Theme.Interact
@@ -716,8 +684,8 @@ function Ecstays:CreateWindow(opts)
         Arrow.Position = UDim2.new(1, -28, 0, 4)
         Arrow.Parent = Btn
 
-        local Open = false
-        local Popup
+        local Open, Popup = false, nil
+
         local function closePopup()
             if not Popup then return end
             tplay(Popup, .12, {GroupTransparency = 1})
@@ -794,7 +762,6 @@ function Ecstays:CreateWindow(opts)
         end
 
         Btn.MouseButton1Click:Connect(openPopup)
-        -- close on click elsewhere
         UIS.InputBegan:Connect(function(inp, gp)
             if gp then return end
             if Open and inp.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -810,14 +777,13 @@ function Ecstays:CreateWindow(opts)
         return Row
     end
 
-    -- Slider (0..Max)
+    -- Slider
     function Components.Slider(target, cfg)
-        local max = tonumber(cfg.MaxValue) or 100
-        local allowDec = cfg.AllowDecimals == true
-        local decimals = tonumber(cfg.DecimalAmount) or 2
-
+        local max        = tonumber(cfg.MaxValue) or 100
+        local allowDec   = cfg.AllowDecimals == true
+        local decimals   = tonumber(cfg.DecimalAmount) or 2
         local Row = rowBase(target, 82)
-        local T,D = labels(Row, cfg.Title, cfg.Description)
+        labels(Row, cfg.Title, cfg.Description)
 
         local Track = Instance.new("Frame")
         Track.BackgroundColor3 = Theme.Interact
@@ -856,7 +822,6 @@ function Ecstays:CreateWindow(opts)
         local s = newStroke(Box, 1, Theme.Stroke, .6)
 
         local value = 0
-
         local function fmt(n)
             if allowDec then
                 local p = 10 ^ decimals
@@ -870,7 +835,7 @@ function Ecstays:CreateWindow(opts)
         local function setVal(n)
             n = math.clamp(n, 0, max)
             value = n
-            local scale = n / max
+            local scale = (max == 0 and 0) or (n / max)
             Fill.Size = UDim2.fromScale(scale, 1)
             Circle.Position = UDim2.new(scale, 0, .5, 0)
             Box.Text = fmt(n)
@@ -893,9 +858,7 @@ function Ecstays:CreateWindow(opts)
             end
         end)
         UIS.InputEnded:Connect(function(inp)
-            if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = false
-            end
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
         end)
         UIS.InputChanged:Connect(function(inp)
             if dragging and inp.UserInputType == Enum.UserInputType.MouseMovement then
@@ -906,10 +869,7 @@ function Ecstays:CreateWindow(opts)
         Box.Focused:Connect(function() tplay(s, .08, {Transparency = .35, Color = Theme.Accent}) end)
         Box.FocusLost:Connect(function(enter)
             tplay(s, .10, {Transparency = .6, Color = Theme.Stroke})
-            if enter then
-                local n = tonumber(Box.Text) or 0
-                setVal(n)
-            end
+            if enter then setVal(tonumber(Box.Text) or 0) end
         end)
 
         setVal(tonumber(cfg.Default) or 0)
@@ -919,12 +879,12 @@ function Ecstays:CreateWindow(opts)
     -- Paragraph
     function Components.Paragraph(target, cfg)
         local Row = rowBase(target, 120)
-        local T,D = labels(Row, cfg.Title, cfg.Description)
+        local _,D = labels(Row, cfg.Title, cfg.Description)
         D.TextWrapped = true
         return Row
     end
 
-    -- Notification (floating)
+    -- Notifications
     local NotiRoot = Instance.new("Frame")
     NotiRoot.BackgroundTransparency = 1
     NotiRoot.Size = UDim2.new(1, -20, 1, -20)
@@ -993,13 +953,13 @@ function Ecstays:CreateWindow(opts)
     end
 
     --====================================================
-    -- Public API (Window)
+    -- Public API
     --====================================================
     local API = {}
 
-    -- core
-    function API:Show() open() end
-    function API:Hide() Root.Visible = false end
+    -- Core
+    function API:Show()  open() end
+    function API:Hide()  Root.Visible = false end
     function API:Destroy() SG:Destroy() end
 
     function API:SetTitle(t) TitleLbl.Text = tostring(t or "Ecstays") .. " • Ecstays" end
@@ -1013,8 +973,8 @@ function Ecstays:CreateWindow(opts)
         Root.GroupTransparency = BaseT
     end
     function API:SetTheme(tbl)
-        -- lightweight live theming: update top-level colors
         Theme = tbl or Theme
+        -- update primary surfaces quickly
         Bar.BackgroundColor3 = Theme.Primary
         Root.BackgroundColor3 = Theme.Secondary
         Sidebar.BackgroundColor3 = Theme.Tertiary
@@ -1023,7 +983,7 @@ function Ecstays:CreateWindow(opts)
         RootStroke.Color = Theme.Stroke
     end
 
-    -- window controls
+    -- Window controls
     BtnMin.MouseButton1Click:Connect(function() Root.Visible = false end)
     BtnClose.MouseButton1Click:Connect(function() close() end)
 
@@ -1034,122 +994,39 @@ function Ecstays:CreateWindow(opts)
         end
     end)
 
-    -- tabs
+    -- Tab Sections
     function API:AddTabSection(cfg)
-        -- kept for API compatibility; sections define ordering in sidebar
-        -- here we just store order; rendering is handled by AddTab
-        self.__sections = self.__sections or {}
-        self.__sections[cfg.Name] = cfg.Order or (table.getn(self.__sections)+1)
+        SectionsOrder[cfg.Name] = cfg.Order or (table.getn(SectionsOrder)+1)
     end
 
     function API:AddTab(cfg)
         local title = cfg.Title or "Tab"
-        local order = (self.__sections and self.__sections[cfg.Section]) or 999
+        local order = SectionsOrder[cfg.Section] or 999
         local btn = makeTabButton(title, order)
         local page, scroll = makeTabPage(title)
-
         Tabs[title] = { Button = btn, Page = page, Scroll = scroll }
-
         btn.MouseButton1Click:Connect(function() setTab(title) end)
         if not CurrentTab then setTab(title) end
-
         return scroll
     end
 
     function API:SetTab(name) if Tabs[name] then setTab(name) end end
 
-    -- components
-    function API:AddSection(cfg) return section(cfg.Tab, cfg.Name) end
-    function API:AddButton(cfg)  return Components.Button(cfg.Tab, cfg) end
-    function API:AddInput(cfg)   return Components.Input(cfg.Tab, cfg) end
-    function API:AddToggle(cfg)  return Components.Toggle(cfg.Tab, cfg) end
-    function API:AddKeybind(cfg) return Components.Keybind(cfg.Tab, cfg) end
-    function API:AddDropdown(cfg) return Components.Dropdown(cfg.Tab, cfg) end
-    function API:AddSlider(cfg)  return Components.Slider(cfg.Tab, cfg) end
+    -- Components
+    function API:AddSection(cfg)   return section(cfg.Tab, cfg.Name) end
+    function API:AddButton(cfg)    return Components.Button(cfg.Tab, cfg) end
+    function API:AddInput(cfg)     return Components.Input(cfg.Tab, cfg) end
+    function API:AddToggle(cfg)    return Components.Toggle(cfg.Tab, cfg) end
+    function API:AddKeybind(cfg)   return Components.Keybind(cfg.Tab, cfg) end
+    function API:AddDropdown(cfg)  return Components.Dropdown(cfg.Tab, cfg) end
+    function API:AddSlider(cfg)    return Components.Slider(cfg.Tab, cfg) end
     function API:AddParagraph(cfg) return Components.Paragraph(cfg.Tab, cfg) end
-    function API:Notify(cfg) notify(cfg) end
+    function API:Notify(cfg)       notify(cfg) end
 
-    -- finalize: open on create
+    -- auto-open
     open()
 
     return API
 end
-
---========================================================
--- QUICK DEMO (comment out if used as module)
---========================================================
---[[
-local UI = Ecstays:CreateWindow({
-    Title = "Ecstays",
-    Size = Vector2.new(760, 500),
-    Transparency = 0.06,
-    MinimizeKeybind = Enum.KeyCode.LeftControl,
-})
-
-UI:AddTabSection({ Name = "General",  Order = 1 })
-UI:AddTabSection({ Name = "Gameplay", Order = 2 })
-
-local home = UI:AddTab({ Title = "Home", Section = "General" })
-local ctrl = UI:AddTab({ Title = "Controls", Section = "Gameplay" })
-UI:SetTab("Home")
-
-UI:AddSection({ Name = "Welcome", Tab = home })
-UI:AddParagraph({
-    Title = "Ecstays UI",
-    Description = "Clean dark theme mit pink-lilac Accent. LeftCtrl minimiert/öffnet.",
-    Tab = home
-})
-
-UI:AddButton({
-    Title = "Show Notification",
-    Description = "Kurze Demo-Notification",
-    Tab = home,
-    Callback = function()
-        UI:Notify({ Title = "Ecstays", Description = "Hello ✨", Duration = 2.2 })
-    end
-})
-
-UI:AddInput({
-    Title = "Your Name",
-    Description = "Enter drücken um zu bestätigen",
-    Tab = home,
-    Callback = function(text)
-        UI:Notify({ Title = "Hi!", Description = text == "" and "Anonymous" or text, Duration = 1.6 })
-    end
-})
-
-UI:AddSection({ Name = "Gameplay", Tab = ctrl })
-UI:AddToggle({
-    Title = "Auto Sprint",
-    Description = "Demo Toggle",
-    Default = true,
-    Tab = ctrl,
-    Callback = function(on) print("Auto Sprint:", on) end
-})
-
-UI:AddKeybind({
-    Title = "Quick Action",
-    Description = "Taste/Maus setzen",
-    Tab = ctrl,
-    Callback = function(input) print("Keybind:", input.KeyCode or input.UserInputType) end
-})
-
-UI:AddDropdown({
-    Title = "Difficulty",
-    Description = "Select one",
-    Options = { ["Casual"]="casual", ["Normal"]="normal", ["Hard"]="hard" },
-    Tab = ctrl,
-    Callback = function(choice) print("Difficulty:", choice) end
-})
-
-UI:AddSlider({
-    Title = "WalkSpeed",
-    Description = "0–100",
-    MaxValue = 100,
-    AllowDecimals = false,
-    Tab = ctrl,
-    Callback = function(v) print("WalkSpeed:", v) end
-})
---]]
 
 return Ecstays
