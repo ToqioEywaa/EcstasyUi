@@ -1,39 +1,32 @@
---[[
-    Ecstays UI Library (full rebuild)
-    Features:
-      • Centered, compact, blue-dark (no purple), subtle transparency
-      • Smooth drag with inertia (no teleport), window zoom-in/out
-      • Only Minimize + Close buttons (top-right)
-      • Tabs/Sections + Button/Input/Toggle/Keybind/Dropdown/Slider/Paragraph
-      • Notifications bottom-left (outside window)
-      • Login Gate BEFORE window (like screenshot):
-          - Title: "Reedem Script Key" (requested spelling)
-          - Links line (click here / purchase)
-          - Key field + eye icon (rbxassetid://6523858422) + ✓ button
-          - Discord button: left icon (rbxassetid://124135407373085)
-            background image gradient (rbxassetid://424418391)
-            hover + press effects
-          - White-corner bleed fixed via ClipsDescendants everywhere
-]]
+-- Ecstays UI (clean blue-dark) • v6.2
+-- Smooth drag + inertia • zoom open/close • bottom-right notifys (above blur)
+-- Login Gate with blur-only background, icons via rbxassetid or rbxthumb fallback
+
 if not game:IsLoaded() then game.Loaded:Wait() end
 
-local Players = game:GetService("Players")
-local UIS     = game:GetService("UserInputService")
-local TweenS  = game:GetService("TweenService")
-local RunS    = game:GetService("RunService")
-local LP      = Players.LocalPlayer
+local Players  = game:GetService("Players")
+local UIS      = game:GetService("UserInputService")
+local TweenS   = game:GetService("TweenService")
+local RunS     = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local LP       = Players.LocalPlayer
 
--- utils
+-- ========== utils ==========
 local function safeParent(gui)
     local ok = pcall(function() gui.Parent = game:GetService("CoreGui") end)
     if not ok then gui.Parent = LP:WaitForChild("PlayerGui") end
 end
-local function tplay(o,t,props,style,dir)
-    return TweenS:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Sine, dir or Enum.EasingDirection.Out), props):Play()
+local function tplay(o,t,p,style,dir)
+    return TweenS:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Sine, dir or Enum.EasingDirection.Out), p):Play()
 end
-local function rc(p,r) local u=Instance.new("UICorner"); u.CornerRadius=UDim.new(0,r or 12); u.Parent=p; return u end
-local function st(p,th,co,tr) local s=Instance.new("UIStroke"); s.Thickness=th or 1; s.Color=co or Color3.fromRGB(70,95,140); s.Transparency=tr or .45; s.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; s.Parent=p; return s end
-local function clamp01(x) return x<0 and 0 or (x>1 and 1 or x) end
+local function rc(p,r) local u=Instance.new("UICorner");u.CornerRadius=UDim.new(0,r or 12);u.Parent=p;return u end
+local function st(p,th,co,tr) local s=Instance.new("UIStroke");s.Thickness=th or 1;s.Color=co or Color3.fromRGB(70,95,140);s.Transparency=tr or .45;s.ApplyStrokeMode=Enum.ApplyStrokeMode.Border;s.Parent=p;return s end
+local function clamp01(x) if x<0 then return 0 elseif x>1 then return 1 else return x end end
+local function imgFrom(id)
+    -- robust loader: try asset id, else use thumbnail (works for decals too)
+    id = tonumber(id) or 0
+    return ("rbxassetid://%d"):format(id), ("rbxthumb://type=Asset&id=%d&w=420&h=420"):format(id)
+end
 
 -- theme
 local Theme = {
@@ -53,12 +46,12 @@ local Theme = {
 }
 
 local Ecstays = {}
-Ecstays._VERSION = "6.0-rebuild"
+Ecstays._VERSION = "6.2"
 
 function Ecstays:CreateWindow(opt)
   opt = opt or {}
   local Size  = opt.Size or UDim2.fromOffset(640, 420)
-  local Trans = math.clamp(opt.Transparency or 0.26, 0, .95)
+  local Trans = math.clamp(opt.Transparency or 0.24, 0, .95)
   local Key   = opt.MinimizeKeybind or Enum.KeyCode.LeftControl
 
   local LOGIN = opt.LoginGate or {
@@ -69,48 +62,58 @@ function Ecstays:CreateWindow(opt)
     OnSubmit = function(key, proceed, fail) proceed() end
   }
 
-  -- ScreenGui
+  -- ==== ScreenGuis ====
   local SG = Instance.new("ScreenGui")
   SG.Name = "EcstaysUI"
   SG.IgnoreGuiInset = true
   SG.ResetOnSpawn = false
+  SG.DisplayOrder = 50
   safeParent(SG)
 
-  -- Notifications (bottom-left)
+  local SG_Notify = Instance.new("ScreenGui")
+  SG_Notify.Name = "EcstaysNotify"
+  SG_Notify.IgnoreGuiInset = true
+  SG_Notify.ResetOnSpawn = false
+  SG_Notify.DisplayOrder = 100 -- above anything
+  safeParent(SG_Notify)
+
+  -- ==== Notifications (bottom-right) ====
   local NotiRoot = Instance.new("Frame")
-  NotiRoot.Name="NotiRoot"
   NotiRoot.BackgroundTransparency = 1
-  NotiRoot.AnchorPoint = Vector2.new(0,1)
-  NotiRoot.Position = UDim2.new(0,12,1,-12)
+  NotiRoot.AnchorPoint = Vector2.new(1,1)
+  NotiRoot.Position = UDim2.new(1,-12,1,-12)
   NotiRoot.Size = UDim2.fromOffset(340, 640)
-  NotiRoot.Parent = SG
+  NotiRoot.ZIndex = 100
+  NotiRoot.Parent = SG_Notify
   local NL = Instance.new("UIListLayout", NotiRoot)
   NL.SortOrder = Enum.SortOrder.LayoutOrder
   NL.Padding = UDim.new(0,8)
   NL.VerticalAlignment = Enum.VerticalAlignment.Bottom
-  NL.HorizontalAlignment = Enum.HorizontalAlignment.Left
+  NL.HorizontalAlignment = Enum.HorizontalAlignment.Right
 
   local function Notify(cfg)
     cfg = cfg or {}
     local N = Instance.new("CanvasGroup")
-    N.Name="Notify"
-    N.ClipsDescendants = true
     N.GroupTransparency = 1
     N.BackgroundColor3 = Theme.Secondary
     N.Size = UDim2.fromOffset(320, 70)
+    N.ZIndex = 100
     N.Parent = NotiRoot
+    N.ClipsDescendants = true
     rc(N,10) st(N,1,Theme.Outline,.45)
 
     local Bar = Instance.new("Frame")
     Bar.BackgroundColor3 = Theme.Accent
     Bar.Size = UDim2.new(0,0,0,3)
     Bar.Position = UDim2.new(0,0,1,-3)
+    Bar.ZIndex = 101
     Bar.Parent = N
 
     local L = Instance.new("Frame")
     L.BackgroundTransparency = 1
     L.Size = UDim2.new(1,-14,1,-14)
     L.Position = UDim2.fromOffset(7,7)
+    L.ZIndex = 101
     L.Parent = N
 
     local T = Instance.new("TextLabel")
@@ -121,6 +124,7 @@ function Ecstays:CreateWindow(opt)
     T.TextColor3 = Theme.Title
     T.Text = cfg.Title or "Notification"
     T.Size = UDim2.new(1,0,0,18)
+    T.ZIndex = 101
     T.Parent = L
 
     local D = Instance.new("TextLabel")
@@ -133,6 +137,7 @@ function Ecstays:CreateWindow(opt)
     D.Text = cfg.Description or ""
     D.Position = UDim2.fromOffset(0,20)
     D.Size = UDim2.new(1,0,1,-20)
+    D.ZIndex = 101
     D.Parent = L
 
     local dur = tonumber(cfg.Duration) or 2
@@ -141,7 +146,7 @@ function Ecstays:CreateWindow(opt)
     task.delay(dur,function() tplay(N,.10,{GroupTransparency=1}); task.delay(.1,function() N:Destroy() end) end)
   end
 
-  -- Window root
+  -- ==== Window ====
   local Root = Instance.new("CanvasGroup")
   Root.Name="Window"
   Root.ClipsDescendants = true
@@ -154,9 +159,7 @@ function Ecstays:CreateWindow(opt)
   Root.Parent = SG
   rc(Root,12) local RootStroke = st(Root,1,Theme.Outline,.45)
 
-  -- Titlebar
   local Bar = Instance.new("Frame")
-  Bar.Name="Titlebar"
   Bar.ClipsDescendants = true
   Bar.BackgroundColor3 = Theme.Primary
   Bar.Size = UDim2.new(1,0,0,40)
@@ -174,7 +177,6 @@ function Ecstays:CreateWindow(opt)
   Title.Size = UDim2.new(1,-130,1,0)
   Title.Parent = Bar
 
-  -- Buttons (Minimize + Close)
   local Btns = Instance.new("Frame")
   Btns.BackgroundTransparency = 1
   Btns.Size = UDim2.fromOffset(110,40)
@@ -196,12 +198,10 @@ function Ecstays:CreateWindow(opt)
     B.Parent=Btns
     rc(B,8) local s=st(B,1,Theme.Outline,.55)
     B.MouseEnter:Connect(function()
-      tplay(B,.1,{BackgroundColor3=Theme.Interact})
-      tplay(s,.1,{Transparency=.35, Color=Theme.Accent})
+      tplay(B,.1,{BackgroundColor3=Theme.Interact}); tplay(s,.1,{Transparency=.35, Color=Theme.Accent})
     end)
     B.MouseLeave:Connect(function()
-      tplay(B,.12,{BackgroundColor3=bg or Theme.Panel})
-      tplay(s,.12,{Transparency=.55, Color=Theme.Outline})
+      tplay(B,.12,{BackgroundColor3=bg or Theme.Panel}); tplay(s,.12,{Transparency=.55, Color=Theme.Outline})
     end)
     return B
   end
@@ -209,7 +209,6 @@ function Ecstays:CreateWindow(opt)
   local BtnMin   = topBtn("Minimize","–",Theme.Text)
   local BtnClose = topBtn("Close","×",Color3.fromRGB(255,130,145))
 
-  -- Body
   local Body = Instance.new("Frame")
   Body.ClipsDescendants = true
   Body.BackgroundTransparency = 1
@@ -253,10 +252,9 @@ function Ecstays:CreateWindow(opt)
 
   local Pages = Instance.new("Folder"); Pages.Name="Pages"; Pages.Parent=Main
 
-  -- open/close (zoom)
+  -- open/close
   local function open()
-    Root.Visible=true
-    Root.GroupTransparency=1
+    Root.Visible=true; Root.GroupTransparency=1
     local sz = Root.Size
     Root.Size = UDim2.new(sz.X, UDim.new(0, math.floor(sz.Y.Offset*0.93)))
     tplay(Root,.18,{Size=sz},Enum.EasingStyle.Quad)
@@ -269,11 +267,11 @@ function Ecstays:CreateWindow(opt)
     task.wait(.14); Root.Visible=false; Root.Size=sz; Root.GroupTransparency=Trans
   end
 
-  -- drag with inertia
+  -- buttery drag with inertia
   do
     local DragHandle = Instance.new("Frame")
     DragHandle.BackgroundTransparency = 1
-    DragHandle.Size = UDim2.new(1,-110,1,0) -- exclude buttons
+    DragHandle.Size = UDim2.new(1,-110,1,0)
     DragHandle.Parent = Bar
     DragHandle.Active = true
 
@@ -291,20 +289,17 @@ function Ecstays:CreateWindow(opt)
       tplay(Root,.08,{GroupTransparency=math.clamp(Trans+0.12,0,.95)})
     end)
     UIS.InputChanged:Connect(function(i)
-      if not dragging then return end
-      if i.UserInputType~=Enum.UserInputType.MouseMovement then return end
+      if not dragging or i.UserInputType~=Enum.UserInputType.MouseMovement then return end
       local m=mpos()
       local newPos = m - startOff
       Root.Position = UDim2.fromOffset(newPos.X, newPos.Y)
       local now=tick(); local dt=now - lastT
-      if dt>0 then vel = vel * friction + (m - last)/dt * (1 - friction) end
+      if dt>0 then vel = vel * 0.90 + (m - last)/dt * 0.10 end
       last = m; lastT = now
     end)
     UIS.InputEnded:Connect(function(i)
-      if i.UserInputType~=Enum.UserInputType.MouseButton1 then return end
-      if not dragging then return end
-      dragging=false
-      tplay(Root,.10,{GroupTransparency=Trans})
+      if i.UserInputType~=Enum.UserInputType.MouseButton1 or not dragging then return end
+      dragging=false; tplay(Root,.10,{GroupTransparency=Trans})
       local step; step = RunS.RenderStepped:Connect(function(dt)
         vel = vel * 0.90
         if vel.Magnitude < minSpeed then step:Disconnect(); return end
@@ -314,7 +309,6 @@ function Ecstays:CreateWindow(opt)
     end)
   end
 
-  -- buttons & toggle key
   BtnMin.MouseButton1Click:Connect(function() Root.Visible=false end)
   BtnClose.MouseButton1Click:Connect(function() close() end)
   UIS.InputBegan:Connect(function(i,gp)
@@ -325,19 +319,13 @@ function Ecstays:CreateWindow(opt)
   end)
 
   -- Tabs + API
-  local Stored = { Sections = {}, Tabs = {} }
-  local Current
-
+  local Stored, Current = { Sections = {}, Tabs = {} }, nil
   local function makeTabBtn(name, order)
     local B=Instance.new("TextButton")
-    B.AutoButtonColor=false
-    B.Name=name; B.Text=""; B.LayoutOrder=order or 999
-    B.Size=UDim2.new(1,0,0,30)
-    B.BackgroundColor3=Theme.Interact
-    B.Parent=TabList
+    B.AutoButtonColor=false; B.Name=name; B.Text=""; B.LayoutOrder=order or 999
+    B.Size=UDim2.new(1,0,0,30); B.BackgroundColor3=Theme.Interact; B.Parent=TabList
     rc(B,8) local s=st(B,1,Theme.Outline,.5)
-    local T=Instance.new("TextLabel")
-    T.BackgroundTransparency=1; T.Font=Enum.Font.Gotham; T.TextXAlignment=Enum.TextXAlignment.Left
+    local T=Instance.new("TextLabel"); T.BackgroundTransparency=1; T.Font=Enum.Font.Gotham; T.TextXAlignment=Enum.TextXAlignment.Left
     T.TextSize=13; T.TextColor3=Theme.Text; T.Text=name; T.Size=UDim2.new(1,-16,1,0); T.Position=UDim2.fromOffset(8,0); T.Parent=B
     B.MouseEnter:Connect(function() tplay(B,.1,{BackgroundColor3=Theme.Panel}); tplay(s,.1,{Transparency=.35, Color=Theme.Accent}) end)
     B.MouseLeave:Connect(function() tplay(B,.12,{BackgroundColor3=Theme.Interact}); tplay(s,.12,{Transparency=.5, Color=Theme.Outline}) end)
@@ -345,8 +333,7 @@ function Ecstays:CreateWindow(opt)
   end
   local function makePage(name)
     local P=Instance.new("CanvasGroup")
-    P.Name=name; P.BackgroundTransparency=1; P.GroupTransparency=0; P.Visible=false
-    P.ClipsDescendants = true
+    P.Name=name; P.BackgroundTransparency=1; P.GroupTransparency=0; P.Visible=false; P.ClipsDescendants = true
     P.Size=UDim2.new(1,-16,1,-16); P.Position=UDim2.fromOffset(8,8); P.Parent=Pages
     local S=Instance.new("ScrollingFrame")
     S.Active=true; S.BackgroundTransparency=1; S.BorderSizePixel=0
@@ -354,9 +341,7 @@ function Ecstays:CreateWindow(opt)
     S.Size=UDim2.new(1,0,1,0); S.Parent=P
     local L=Instance.new("UIListLayout",S); L.Padding=UDim.new(0,8)
     local Pad=Instance.new("UIPadding",S); Pad.PaddingTop=UDim.new(0,8); Pad.PaddingLeft=UDim.new(0,8); Pad.PaddingRight=UDim.new(0,8); Pad.PaddingBottom=UDim.new(0,8)
-    L:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-      S.CanvasSize = UDim2.new(0,0,0,L.AbsoluteContentSize.Y+16)
-    end)
+    L:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() S.CanvasSize = UDim2.new(0,0,0,L.AbsoluteContentSize.Y+16) end)
     return P,S
   end
   local function setTab(n)
@@ -373,7 +358,6 @@ function Ecstays:CreateWindow(opt)
   end
 
   local API = {}
-
   function API:AddTabSection(s) Stored.Sections[s.Name]=s.Order or (#Stored.Sections+1) end
   function API:AddTab(s)
     if Stored.Tabs[s.Title] then error("[Ecstays] Tab exists: "..s.Title) end
@@ -386,7 +370,7 @@ function Ecstays:CreateWindow(opt)
   end
   function API:SetTab(n) if Stored.Tabs[n] then setTab(n) end end
 
-  -- Helpers for rows
+  -- helpers for components
   local function row(parent,h) local R=Instance.new("Frame"); R.ClipsDescendants=true; R.BackgroundColor3=Theme.Panel; R.Size=UDim2.new(1,0,0,h); R.Parent=parent; rc(R,8); st(R,1,Theme.Outline,.5); return R end
   local function labels(r,title,desc,rw)
     local L=Instance.new("Frame"); L.BackgroundTransparency=1; L.Position=UDim2.fromOffset(10,6); L.Size=UDim2.new(1,-((rw or 0)+24),1,-12); L.Parent=r
@@ -397,9 +381,7 @@ function Ecstays:CreateWindow(opt)
   local function right(r,w,h) local S=Instance.new("Frame"); S.BackgroundTransparency=1; S.Size=UDim2.fromOffset(w,h); S.AnchorPoint=Vector2.new(1,.5); S.Position=UDim2.new(1,-10,.5,0); S.Parent=r; return S end
 
   function API:AddSection(s)
-    local R=row(s.Tab,28)
-    local T=Instance.new("TextLabel"); T.BackgroundTransparency=1; T.Font=Enum.Font.GothamSemibold; T.TextSize=13; T.TextXAlignment=Enum.TextXAlignment.Left; T.TextColor3=Theme.Title; T.Text=s.Name or "Section"; T.Size=UDim2.new(1,-10,1,0); T.Position=UDim2.fromOffset(10,0); T.Parent=R
-    return R
+    local R=row(s.Tab,28); local T=Instance.new("TextLabel"); T.BackgroundTransparency=1; T.Font=Enum.Font.GothamSemibold; T.TextSize=13; T.TextXAlignment=Enum.TextXAlignment.Left; T.TextColor3=Theme.Title; T.Text=s.Name or "Section"; T.Size=UDim2.new(1,-10,1,0); T.Position=UDim2.fromOffset(10,0); T.Parent=R; return R
   end
   function API:AddButton(s)
     local RW=118; local R=row(s.Tab,54); labels(R,s.Title,s.Description,RW); local slot=right(R,RW,28)
@@ -477,11 +459,11 @@ function Ecstays:CreateWindow(opt)
     local Fill=Instance.new("Frame"); Fill.BackgroundColor3=Theme.Accent; Fill.Size=UDim2.fromScale(0,1); Fill.Parent=Track; rc(Fill,3)
     local Knob=Instance.new("Frame"); Knob.Size=UDim2.fromOffset(14,14); Knob.AnchorPoint=Vector2.new(.5,.5); Knob.Position=UDim2.new(0,0,.5,0); Knob.BackgroundColor3=Color3.fromRGB(255,255,255); Knob.Parent=Track; rc(Knob,7); st(Knob,1,Theme.Outline,.4)
     local slot=right(R,RW,26); local Box=Instance.new("TextBox"); Box.Size=UDim2.fromScale(1,1); Box.BackgroundColor3=Theme.Interact; Box.TextColor3=Theme.Title; Box.PlaceholderText="0"; Box.Text="0"; Box.Font=Enum.Font.Gotham; Box.TextSize=13; Box.Parent=slot; rc(Box,8); st(Box,1,Theme.Outline,.5)
-    local max=tonumber(s.MaxValue) or 100; local dec=s.AllowDecimals==true; local prec=tonumber(s.DecimalAmount) or 2; local val=0
+    local max=tonumber(s.MaxValue) or 100; local dec=s.AllowDecimals==true; local prec=tonumber(s.DecimalAmount) or 2
     local function fmt(n) if dec then local p=10^prec n=math.floor(n*p+0.5)/p return tostring(n) else return tostring(math.floor(n+0.5)) end end
-    local function setv(n) n=math.clamp(n,0,max); val=n; local sc=(max==0) and 0 or (n/max); Fill.Size=UDim2.fromScale(sc,1); Knob.Position=UDim2.new(sc,0,.5,0); Box.Text=fmt(n); if s.Callback then pcall(function() s.Callback(n) end) end end
+    local function setv(n) n=math.clamp(n,0,max); local sc=(max==0) and 0 or (n/max); Fill.Size=UDim2.fromScale(sc,1); Knob.Position=UDim2.new(sc,0,.5,0); Box.Text=fmt(n); if s.Callback then pcall(function() s.Callback(n) end) end end
     local dragging=false
-    local function mval() local m=UIS:GetMouseLocation(); local x0=Track.AbsolutePosition.X; local w=Track.AbsoluteSize.X; local sc=clamp01((m.X-x0)/w); return sc*max end
+    local function mval() local m=UIS:GetMouseLocation(); local x0=Track.AbsolutePosition.X; local w=Track.AbsoluteSize.X; return clamp01((m.X-x0)/w)*max end
     Track.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging=true; setv(mval()) end end)
     UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType==Enum.UserInputType.MouseMovement then setv(mval()) end end)
     UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging=false end end)
@@ -491,38 +473,23 @@ function Ecstays:CreateWindow(opt)
   function API:AddParagraph(s) local R=row(s.Tab,110); local _,D=labels(R,s.Title,s.Description,0); D.TextWrapped=true; return R end
 
   function API:Notify(c) Notify(c) end
-  function API:SetTheme(tbl)
-    for k,v in pairs(tbl or {}) do Theme[k]=v end
-    Root.BackgroundColor3=Theme.Secondary; Bar.BackgroundColor3=Theme.Primary
-    Sidebar.BackgroundColor3=Theme.Panel; Main.BackgroundColor3=Theme.Panel
-    RootStroke.Color=Theme.Outline; Title.TextColor3=Theme.Title
-  end
-  function API:SetSetting(s,v)
-    if s=="Transparency" then Trans=math.clamp(v or Trans,0,.95); Root.GroupTransparency=Trans
-    elseif s=="Size" then Size=v; Root.Size=v
-    elseif s=="Theme" and typeof(v)=="table" then API:SetTheme(v)
-    elseif s=="Keybind" then Key=v
-    end
-  end
+  function API:SetTheme(tbl) for k,v in pairs(tbl or {}) do Theme[k]=v end; Root.BackgroundColor3=Theme.Secondary; Bar.BackgroundColor3=Theme.Primary; Sidebar.BackgroundColor3=Theme.Panel; Main.BackgroundColor3=Theme.Panel; RootStroke.Color=Theme.Outline; Title.TextColor3=Theme.Title end
+  function API:SetSetting(s,v) if s=="Transparency" then Trans=math.clamp(v or Trans,0,.95); Root.GroupTransparency=Trans elseif s=="Size" then Size=v; Root.Size=v elseif s=="Theme" and typeof(v)=="table" then API:SetTheme(v) elseif s=="Keybind" then Key=v end end
   function API:Show() open() end
   function API:Hide() Root.Visible=false end
-  function API:Destroy() SG:Destroy() end
+  function API:Destroy() SG:Destroy(); SG_Notify:Destroy() end
 
-  ----------------------------------------------------------------
-  -- LOGIN GATE  (exact look + assets + hover + white-corner fix)
-  ----------------------------------------------------------------
+  -- ======= LOGIN GATE (blur background; icons fixed; hover strong; key mask overlay) =======
   local function showGate()
     if not LOGIN.Enabled then open(); return end
 
-    -- Dimmer
-    local Shade = Instance.new("CanvasGroup")
-    Shade.Size = UDim2.fromScale(1,1)
-    Shade.BackgroundColor3 = Color3.fromRGB(0,0,0)
-    Shade.GroupTransparency = 1
-    Shade.Parent = SG
-    tplay(Shade,.12,{GroupTransparency=.25})
+    -- world blur (no dark shade)
+    local Blur = Instance.new("BlurEffect")
+    Blur.Size = 0
+    Blur.Parent = Lighting
+    tplay(Blur,.14,{Size=12})
 
-    -- Modal wrapper
+    -- modal
     local Modal = Instance.new("CanvasGroup")
     Modal.AnchorPoint = Vector2.new(.5,.5)
     Modal.Position = UDim2.fromScale(.5,.5)
@@ -530,15 +497,12 @@ function Ecstays:CreateWindow(opt)
     Modal.GroupTransparency = 1
     Modal.Parent = SG
 
-    -- Card (clip -> NO white corners)
     local Card = Instance.new("Frame")
     Card.Size = UDim2.fromScale(1,1)
-    Card.ClipsDescendants = true
     Card.BackgroundColor3 = Theme.Secondary
+    Card.ClipsDescendants = true
     Card.Parent = Modal
     rc(Card,18) st(Card,1,Theme.Outline,.4)
-
-    -- Background gradient
     local BG = Instance.new("Frame")
     BG.Size = UDim2.fromScale(1,1)
     BG.BackgroundColor3 = Theme.Secondary
@@ -551,7 +515,6 @@ function Ecstays:CreateWindow(opt)
     })
     Grad.Parent = BG
 
-    -- Close X
     local CloseX = Instance.new("TextButton")
     CloseX.AutoButtonColor=false
     CloseX.Text="×"; CloseX.TextSize=20; CloseX.Font=Enum.Font.GothamBold
@@ -559,13 +522,11 @@ function Ecstays:CreateWindow(opt)
     CloseX.BackgroundTransparency=1
     CloseX.Size=UDim2.fromOffset(28,28)
     CloseX.Position=UDim2.new(1,-36,0,8)
-    CloseX.Parent = Card
+    CloseX.Parent=Card
     CloseX.MouseButton1Click:Connect(function()
-      tplay(Modal,.12,{GroupTransparency=1}); tplay(Shade,.10,{GroupTransparency=1})
-      task.delay(.12,function() Modal:Destroy(); Shade:Destroy() end)
+      tplay(Modal,.12,{GroupTransparency=1}); tplay(Blur,.12,{Size=0}); task.delay(.12,function() Modal:Destroy(); Blur:Destroy() end)
     end)
 
-    -- Title (requested)
     local H1 = Instance.new("TextLabel")
     H1.BackgroundTransparency=1
     H1.Font=Enum.Font.GothamBlack
@@ -577,7 +538,6 @@ function Ecstays:CreateWindow(opt)
     H1.Size=UDim2.new(1,-44,0,32)
     H1.Parent=Card
 
-    -- Under text (links)
     local Links = Instance.new("TextLabel")
     Links.BackgroundTransparency=1
     Links.Font=Enum.Font.Gotham
@@ -585,22 +545,21 @@ function Ecstays:CreateWindow(opt)
     Links.TextSize=13
     Links.TextXAlignment=Enum.TextXAlignment.Left
     Links.TextColor3=Theme.Muted
-    Links.Text = 'The Key link has been copied if not <font color="#4BA3FF"><u>click here</u></font> to copy  '..
+    Links.Text = 'The Key link has been copied if not <font color="#4BA3FF"><u>click here</u></font> to copy  '.. 
                  'Want to purchase subscription instead? <font color="#4BA3FF"><u>Click to purchase</u></font>'
     Links.Position=UDim2.fromOffset(26,58)
     Links.Size=UDim2.new(1,-52,0,40)
     Links.Parent=Card
 
-    -- Transparent hit areas:
+    -- clickable areas
     local LinkCopy = Instance.new("TextButton")
     LinkCopy.BackgroundTransparency=1; LinkCopy.Text=""; LinkCopy.AutoButtonColor=false
     LinkCopy.Size=UDim2.fromOffset(130,18); LinkCopy.Position=UDim2.fromOffset(375,58); LinkCopy.Parent=Card
-
     local LinkBuy = Instance.new("TextButton")
     LinkBuy.BackgroundTransparency=1; LinkBuy.Text=""; LinkBuy.AutoButtonColor=false
     LinkBuy.Size=UDim2.fromOffset(150,18); LinkBuy.Position=UDim2.fromOffset(640,58); LinkBuy.Parent=Card
 
-    -- Key row
+    -- key row
     local Row = Instance.new("Frame")
     Row.BackgroundTransparency=1
     Row.Size=UDim2.new(1,-52,0,66)
@@ -609,20 +568,24 @@ function Ecstays:CreateWindow(opt)
 
     local Field = Instance.new("Frame")
     Field.BackgroundColor3 = Theme.Interact
-    Field.ClipsDescendants = true
     Field.Size = UDim2.new(1,0,1,0)
+    Field.ClipsDescendants = true
     Field.Parent = Row
     rc(Field,14) st(Field,1,Theme.Outline,.45)
 
+    local eyeAsset, eyeThumb = imgFrom(6523858422)
     local Eye = Instance.new("ImageButton")
     Eye.AutoButtonColor=false
-    Eye.Image = "rbxassetid://6523858422"
-    Eye.ImageColor3 = Color3.fromRGB(180, 205, 240)
+    Eye.Image = eyeAsset
     Eye.BackgroundTransparency=1
     Eye.Size=UDim2.fromOffset(36,36)
     Eye.Position=UDim2.fromOffset(14,15)
     Eye.Parent=Field
+    Eye:GetPropertyChangedSignal("IsLoaded"):Connect(function()
+      if not Eye.IsLoaded then Eye.Image = eyeThumb end
+    end)
 
+    -- actual textbox with optional mask overlay (so typing works)
     local Box = Instance.new("TextBox")
     Box.ClearTextOnFocus=false
     Box.BackgroundTransparency=1
@@ -636,6 +599,18 @@ function Ecstays:CreateWindow(opt)
     Box.Position=UDim2.fromOffset(56,0)
     Box.Size=UDim2.new(1,-120,1,0)
     Box.Parent=Field
+
+    local Mask = Instance.new("TextLabel") -- sits on top when hidden
+    Mask.BackgroundTransparency=1
+    Mask.TextColor3=Theme.Title
+    Mask.Font=Enum.Font.Gotham
+    Mask.TextSize=16
+    Mask.TextXAlignment=Enum.TextXAlignment.Left
+    Mask.Text = ""
+    Mask.Position = Box.Position
+    Mask.Size     = Box.Size
+    Mask.Visible  = false
+    Mask.Parent   = Field
 
     local Submit = Instance.new("TextButton")
     Submit.AutoButtonColor=false
@@ -658,7 +633,7 @@ function Ecstays:CreateWindow(opt)
     Error.Size = UDim2.new(1,-56,0,18)
     Error.Parent = Card
 
-    -- Discord button (image gradient bg + icon + hover/press)
+    -- discord button
     local Discord = Instance.new("TextButton")
     Discord.AutoButtonColor=false
     Discord.BackgroundTransparency = 1
@@ -667,28 +642,35 @@ function Ecstays:CreateWindow(opt)
     Discord.Text = ""
     Discord.Parent = Card
 
+    local gradAsset, gradThumb = imgFrom(424418391)
     local DiscBG = Instance.new("ImageLabel")
     DiscBG.BackgroundTransparency=1
     DiscBG.ScaleType = Enum.ScaleType.Stretch
-    DiscBG.Image = "rbxassetid://424418391" -- gradient asset
-    DiscBG.ImageTransparency = 0
+    DiscBG.Image = gradAsset
     DiscBG.Size = UDim2.fromScale(1,1)
     DiscBG.Parent = Discord
     rc(DiscBG,14)
+    DiscBG:GetPropertyChangedSignal("IsLoaded"):Connect(function()
+      if not DiscBG.IsLoaded then DiscBG.Image = gradThumb end
+    end)
 
     local DiscStrokeHolder = Instance.new("Frame")
     DiscStrokeHolder.BackgroundTransparency=1
     DiscStrokeHolder.Size = UDim2.fromScale(1,1)
     DiscStrokeHolder.Parent = Discord
     rc(DiscStrokeHolder,14)
-    st(DiscStrokeHolder,1,Color3.fromRGB(255,255,255),.85)
+    local stroke = st(DiscStrokeHolder,1,Color3.fromRGB(255,255,255),.85)
 
+    local icAsset, icThumb = imgFrom(124135407373085)
     local DiscIcon = Instance.new("ImageLabel")
     DiscIcon.BackgroundTransparency=1
-    DiscIcon.Image = "rbxassetid://124135407373085"
+    DiscIcon.Image = icAsset
     DiscIcon.Size = UDim2.fromOffset(28,28)
     DiscIcon.Position = UDim2.fromOffset(18,18)
     DiscIcon.Parent = Discord
+    DiscIcon:GetPropertyChangedSignal("IsLoaded"):Connect(function()
+      if not DiscIcon.IsLoaded then DiscIcon.Image = icThumb end
+    end)
 
     local DiscTitle = Instance.new("TextLabel")
     DiscTitle.BackgroundTransparency=1
@@ -712,17 +694,16 @@ function Ecstays:CreateWindow(opt)
     DiscSub.Size=UDim2.new(1,-70,0,20)
     DiscSub.Parent=Discord
 
-    -- hover & press
+    -- stronger hover
+    local Scale = Instance.new("UIScale", Discord); Scale.Scale = 1
     Discord.MouseEnter:Connect(function()
-      tplay(DiscBG,.08,{ImageTransparency = 0.03})
-      tplay(Discord,.08,{Size=UDim2.new(1,-52,0,66)})
+      tplay(Scale,.10,{Scale=1.02}); tplay(DiscBG,.10,{ImageTransparency=.02}); tplay(stroke,.10,{Transparency=.65})
     end)
     Discord.MouseLeave:Connect(function()
-      tplay(DiscBG,.10,{ImageTransparency = 0})
-      tplay(Discord,.10,{Size=UDim2.new(1,-52,0,64)})
+      tplay(Scale,.10,{Scale=1}); tplay(DiscBG,.10,{ImageTransparency=0}); tplay(stroke,.10,{Transparency=.85})
     end)
-    Discord.MouseButton1Down:Connect(function() tplay(DiscBG,.06,{ImageTransparency = 0.08}) end)
-    Discord.MouseButton1Up:Connect(function() tplay(DiscBG,.10,{ImageTransparency = 0.03}) end)
+    Discord.MouseButton1Down:Connect(function() tplay(DiscBG,.06,{ImageTransparency=.08}) end)
+    Discord.MouseButton1Up:Connect(function() tplay(DiscBG,.10,{ImageTransparency=.02}) end)
 
     Discord.MouseButton1Click:Connect(function()
       if LOGIN.DiscordURL and setclipboard then
@@ -733,10 +714,25 @@ function Ecstays:CreateWindow(opt)
       end
     end)
 
-    -- link actions
+    -- mask toggle (default: visible to allow easy typing)
+    local hidden = false
+    local function syncMask()
+      if hidden then
+        Mask.Text = string.rep("•", #Box.Text)
+        Mask.Visible = true
+        Box.TextTransparency = 1
+      else
+        Mask.Visible = false
+        Box.TextTransparency = 0
+      end
+    end
+    Eye.MouseButton1Click:Connect(function() hidden = not hidden; syncMask() end)
+    Box:GetPropertyChangedSignal("Text"):Connect(function() if hidden then Mask.Text = string.rep("•", #Box.Text) end end)
+    syncMask()
+
+    -- links
     LinkCopy.MouseButton1Click:Connect(function()
-      local txt = Box.Text:gsub("•","")
-      if setclipboard then setclipboard(txt) end
+      if setclipboard then setclipboard(Box.Text) end
       Notify({Title="Key", Description="Key copied to clipboard.", Duration=1.6})
     end)
     LinkBuy.MouseButton1Click:Connect(function()
@@ -744,35 +740,13 @@ function Ecstays:CreateWindow(opt)
       Notify({Title="Purchase", Description="Purchase link copied.", Duration=1.6})
     end)
 
-    -- masking logic
-    local masked, buffer = true, ""
-    Eye.MouseButton1Click:Connect(function()
-      masked = not masked
-      if masked then
-        Box.Text = string.rep("•", #buffer)
-      else
-        Box.Text = buffer
-      end
-    end)
-    Box:GetPropertyChangedSignal("Text"):Connect(function()
-      if masked then
-        local n = utf8.len(Box.Text) or #Box.Text
-        if n < #buffer then buffer = string.sub(buffer,1,n) end
-        Box.Text = string.rep("•", #buffer)
-      else
-        buffer = Box.Text
-      end
-    end)
-
     local function proceed()
-      tplay(Modal,.12,{GroupTransparency=1}); tplay(Shade,.10,{GroupTransparency=1})
-      task.delay(.12,function() Modal:Destroy(); Shade:Destroy(); open() end)
+      tplay(Modal,.12,{GroupTransparency=1}); tplay(Blur,.12,{Size=0})
+      task.delay(.12,function() Modal:Destroy(); Blur:Destroy(); open() end)
     end
-    local function fail(msg)
-      Error.Text = msg or "Invalid key."; tplay(Error,.08,{TextTransparency=0})
-    end
+    local function fail(msg) Error.Text = msg or "Invalid key."; tplay(Error,.08,{TextTransparency=0}) end
     local function doSubmit()
-      local key = masked and buffer or Box.Text
+      local key = Box.Text
       if LOGIN.OnSubmit then
         local ok = pcall(function() LOGIN.OnSubmit(key, proceed, fail) end)
         if not ok then fail("Validation error") end
@@ -781,14 +755,10 @@ function Ecstays:CreateWindow(opt)
     Submit.MouseButton1Click:Connect(doSubmit)
     Box.FocusLost:Connect(function(enter) if enter then doSubmit() end end)
 
-    -- show
     tplay(Modal,.14,{GroupTransparency=Trans})
   end
 
-  -- gate first
   showGate()
-
-  -- expose
   function API:Notify(c) Notify(c) end
   return API
 end
